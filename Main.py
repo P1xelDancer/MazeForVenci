@@ -1,7 +1,7 @@
 
-import random, Maze
 import tkinter as tk
-from tkinter import filedialog
+from tkinter import messagebox, filedialog
+import random, pygame.mixer, json, os, Maze
 
 
 def generate_maze(width, height):
@@ -71,6 +71,60 @@ def generate_maze(width, height):
     return maze
 
 
+def get_statistics_file():
+    """Visszaadja a statisztika fájl elérési útját"""
+    # A felhasználó home könyvtárában hozzuk létre
+    home_dir = os.path.expanduser("~")
+    stats_dir = os.path.join(home_dir, ".maze_game")
+    
+    # Ha a könyvtár nem létezik, hozzuk létre
+    if not os.path.exists(stats_dir):
+        os.makedirs(stats_dir)
+    
+    return os.path.join(stats_dir, "statistics.json")
+
+
+def load_statistics():
+    """Betölti a statisztikákat"""
+    stats_file = get_statistics_file()
+    
+    # Ha a fájl nem létezik, üres statisztikát adunk vissza
+    if not os.path.exists(stats_file):
+        return {
+            "Nagyon könnyű": 0,
+            "Könnyű": 0,
+            "Közepes": 0, 
+            "Nehéz": 0,
+            "Egyedi": 0
+        }
+    
+    try:
+        with open(stats_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Hiba a statisztika betöltése közben: {e}")
+        return {
+            "Nagyon könnyű": 0,
+            "Könnyű": 0,
+            "Közepes": 0, 
+            "Nehéz": 0,
+            "Egyedi": 0
+        }
+
+
+def save_statistics(stats):
+    """Elmenti a statisztikákat"""
+    stats_file = get_statistics_file()
+    
+    try:
+        with open(stats_file, 'w') as f:
+            json.dump(stats, f)
+        return True
+    except Exception as e:
+        print(f"Hiba a statisztika mentése közben: {e}")
+        return False
+
+
 def load_maze_from_file(filename):
     """Labirintus betöltése fájlból"""
     maze = []
@@ -122,24 +176,40 @@ def save_maze_to_file(maze, filename):
 def main():
     # Főprogram
     root = tk.Tk()
+    root.title("Labirintus Játék - Főmenü")
+    
+    # Statisztikák betöltése
+    stats = load_statistics()
     
     # Kérjük meg a felhasználót, hogy válasszon egy opciót
-    frame = tk.Frame(root)
-    frame.pack(padx=20, pady=20)
+    frame = tk.Frame(root, padx=20, pady=20)
+    frame.pack(fill=tk.BOTH, expand=True)
+    
+    # Cím
+    title_label = tk.Label(frame, text="Labirintus Játék", font=("Arial", 18, "bold"))
+    title_label.pack(pady=10)
     
     # Hangfájl változó
     sound_file = None
     
-    tk.Label(frame, text="Válassz egy opciót:").pack(pady=5)
+    # Nehézségi szintek méretei
+    difficulty_sizes = {
+        "Nagyon könnyű": (10, 10),
+        "Könnyű": (15, 15),
+        "Közepes": (20, 20),
+        "Nehéz": (25, 25)
+    }
     
+    # Játék indítási funkciók
     def start_default():
         frame.destroy()
-        game = Maze.MazeGame(root, sound_file=sound_file)
+        game = Maze.MazeGame(root, sound_file=sound_file, difficulty="Nagyon könnyű")
     
-    def start_random():
+    def start_random(difficulty):
         frame.destroy()
-        maze = generate_maze(15, 15)
-        game = Maze.MazeGame(root, maze, sound_file=sound_file)
+        width, height = difficulty_sizes[difficulty]
+        maze = generate_maze(width, height)
+        game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty=difficulty)
     
     def load_from_file():
         filename = filedialog.askopenfilename(title="Labirintus betöltése", 
@@ -148,7 +218,7 @@ def main():
             maze = load_maze_from_file(filename)
             if maze:
                 frame.destroy()
-                game = Maze.MazeGame(root, maze, sound_file=sound_file)
+                game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty="Egyedi")
     
     def select_sound():
         nonlocal sound_file
@@ -158,15 +228,50 @@ def main():
             sound_file = filename
             sound_label.config(text=f"Kiválasztott hang: {filename.split('/')[-1]}")
     
-    tk.Button(frame, text="Alapértelmezett pálya", command=start_default).pack(fill=tk.X, pady=2)
-    tk.Button(frame, text="Véletlenszerű pálya", command=start_random).pack(fill=tk.X, pady=2)
-    tk.Button(frame, text="Pálya betöltése fájlból", command=load_from_file).pack(fill=tk.X, pady=2)
+    # Játék választó keret
+    game_frame = tk.LabelFrame(frame, text="Válassz játékot", font=("Arial", 12), padx=10, pady=10)
+    game_frame.pack(fill=tk.X, pady=10)
+    
+    # Játék gombok - dupla mérettel
+    tk.Button(game_frame, text="Alapértelmezett pálya", command=start_default,
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    
+    # Nehézségi szintek alcím
+    tk.Label(game_frame, text="Véletlenszerű pályák:", font=("Arial", 11, "bold")).pack(anchor=tk.W, pady=(10, 5))
+    
+    # Nehézségi szint gombok
+    tk.Button(game_frame, text="Nagyon könnyű", command=lambda: start_random("Nagyon könnyű"),
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    tk.Button(game_frame, text="Könnyű", command=lambda: start_random("Könnyű"),
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    tk.Button(game_frame, text="Közepes", command=lambda: start_random("Közepes"),
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    tk.Button(game_frame, text="Nehéz", command=lambda: start_random("Nehéz"),
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    
+    # Pálya betöltése
+    tk.Button(game_frame, text="Pálya betöltése fájlból", command=load_from_file,
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    
+    # Hang választó keret
+    sound_frame = tk.LabelFrame(frame, text="Gratuláló hang", font=("Arial", 12), padx=10, pady=10)
+    sound_frame.pack(fill=tk.X, pady=10)
     
     # Hang kiválasztása
-    tk.Label(frame, text="\nGratulációs hang:").pack(pady=(10, 2))
-    tk.Button(frame, text="Hangfájl kiválasztása", command=select_sound).pack(fill=tk.X, pady=2)
-    sound_label = tk.Label(frame, text="Nincs kiválasztva hang")
-    sound_label.pack(pady=2)
+    tk.Button(sound_frame, text="Hangfájl kiválasztása", command=select_sound,
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    sound_label = tk.Label(sound_frame, text="Nincs kiválasztva hang", font=("Arial", 10))
+    sound_label.pack(pady=5)
+    
+    # Statisztika keret
+    stats_frame = tk.LabelFrame(frame, text="Teljesített pályák", font=("Arial", 12), padx=10, pady=10)
+    stats_frame.pack(fill=tk.X, pady=10)
+    
+    # Statisztika megjelenítése
+    for difficulty, count in stats.items():
+        tk.Label(stats_frame, text=f"{difficulty}: {count} pálya", font=("Arial", 11)).pack(anchor=tk.W)
+    
+    root.mainloop()
     
     root.mainloop()
 

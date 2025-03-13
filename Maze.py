@@ -1,12 +1,14 @@
 import tkinter as tk
 from tkinter import messagebox
-import pygame.mixer
-import Main
+import pygame.mixer, Main
 
 class MazeGame:
-    def __init__(self, master, maze=None, sound_file=None):
+    def __init__(self, master, maze=None, sound_file=None, difficulty=None):
         self.master = master
         self.master.title("Labirintus Játék")
+        
+        # Nehézségi szint megjegyzése a statisztikához
+        self.difficulty = difficulty
         
         # Hang inicializálása
         try:
@@ -93,9 +95,19 @@ class MazeGame:
         self.master.bind("<Left>", lambda event: self.move("left"))
         self.master.bind("<Right>", lambda event: self.move("right"))
         
-        # Új játék gomb
-        self.new_game_button = tk.Button(master, text="Új Játék", command=self.new_game)
-        self.new_game_button.pack(pady=5)
+        # Gombok keret
+        self.button_frame = tk.Frame(master)
+        self.button_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=10)
+        
+        # Új játék gomb - dupla méretű
+        self.new_game_button = tk.Button(self.button_frame, text="Új Játék", command=self.restart_game,
+                                        font=("Arial", 14, "bold"), height=2)
+        self.new_game_button.pack(side=tk.LEFT, padx=10, expand=True, fill=tk.X)
+        
+        # Menü gomb - dupla méretű
+        self.menu_button = tk.Button(self.button_frame, text="Vissza a Menübe", command=self.back_to_menu,
+                                    font=("Arial", 14, "bold"), height=2)
+        self.menu_button.pack(side=tk.RIGHT, padx=10, expand=True, fill=tk.X)
         
     def draw_maze(self):
         """Labirintus kirajzolása"""
@@ -149,6 +161,9 @@ class MazeGame:
                         except Exception as e:
                             print(f"Hiba a hang lejátszása közben: {e}")
                     
+                    # Statisztika frissítése
+                    self.update_statistics()
+                    
                     # Győzelmi üzenet
                     if messagebox.askyesno("Gratulálok!", "Elérted a célt! Szeretnél új játékot kezdeni?"):
                         self.restart_game()
@@ -156,7 +171,7 @@ class MazeGame:
                         self.new_game()
     
     def new_game(self):
-        """Új játék indítása"""
+        """Új játék indítása - csak a játékos helyzetét állítja vissza"""
         # Játékos visszahelyezése a kezdőpozícióra
         if self.start_pos:
             self.player_pos = self.start_pos.copy()
@@ -171,23 +186,31 @@ class MazeGame:
             (self.player_pos[1] + 1) * self.cell_size - 5,
             (self.player_pos[0] + 1) * self.cell_size - 5
         )
-
+        
+    def back_to_menu(self):
+        """Visszatérés a főmenübe megerősítés után"""
+        if messagebox.askyesno("Vissza a menübe", "Biztosan vissza szeretnél térni a főmenübe? Az aktuális játék elvész."):
+            self.restart_game()
+            
     def restart_game(self):
         """Teljesen újraindítja a játékot - ez a gomb eseménykezelője"""
-        # # Eltávolítjuk a jelenlegi játékot
-        # self.canvas.pack_forget()
-        # self.new_game_button.pack_forget()
-        
-        # Visszatérünk a főmenübe
+        # Bezárjuk az aktuális ablakot
         self.master.destroy()
         
-        # Új játék indítása
-        #new_root = tk.Tk()
+        # Új játék indítása - közvetlenül a main funkciót hívjuk
         Main.main()
-
-        # Alternatíva a teljes újraindítással:
-        # # Új játék indítása - importáljuk itt, hogy elkerüljük a körkörös importálást
-        # import sys
-        # python = sys.executable
-        # import os
-        # os.execl(python, python, *sys.argv)
+        
+    def update_statistics(self):
+        """Frissíti a teljesített pályák statisztikáját"""
+        # Csak akkor frissítünk, ha meg van adva a nehézségi szint
+        if self.difficulty:
+            stats = Main.load_statistics()
+            
+            # Növeljük a teljesített pályák számát
+            if self.difficulty in stats:
+                stats[self.difficulty] += 1
+            else:
+                stats[self.difficulty] = 1
+                
+            # Mentjük a statisztikát
+            Main.save_statistics(stats)
