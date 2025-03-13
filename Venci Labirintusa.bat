@@ -1,5 +1,5 @@
 :: Parancsok kiíratásának kikapcsolása:
-@echo off
+::@echo off
 
 :: A gyógyszerID-kat szóközzel elválasztva lehet megadni a parancs után:
 python Main.py

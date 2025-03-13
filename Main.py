@@ -1,7 +1,7 @@
 
 import tkinter as tk
-from tkinter import messagebox, filedialog
-import random, pygame.mixer, json, os, Maze
+from tkinter import filedialog
+import random, json, os, Maze
 
 
 def generate_maze(width, height):
@@ -70,6 +70,49 @@ def generate_maze(width, height):
     
     return maze
 
+def get_settings_file():
+    """Visszaadja a beállítások fájl elérési útját"""
+    # A felhasználó home könyvtárában hozzuk létre
+    home_dir = os.path.expanduser("~")
+    settings_dir = os.path.join(home_dir, ".maze_game")
+    
+    # Ha a könyvtár nem létezik, hozzuk létre
+    if not os.path.exists(settings_dir):
+        os.makedirs(settings_dir)
+    
+    return os.path.join(settings_dir, "settings.json")
+
+
+def load_settings():
+    """Betölti a beállításokat"""
+    settings_file = get_settings_file()
+    
+    # Ha a fájl nem létezik, alapértelmezett beállításokat adunk vissza
+    if not os.path.exists(settings_file):
+        return {
+            "sound_file": None
+        }
+    
+    try:
+        with open(settings_file, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Hiba a beállítások betöltése közben: {e}")
+        return {
+            "sound_file": None
+        }
+
+def save_settings(settings):
+    """Elmenti a beállításokat"""
+    settings_file = get_settings_file()
+    
+    try:
+        with open(settings_file, 'w') as f:
+            json.dump(settings, f)
+        return True
+    except Exception as e:
+        print(f"Hiba a beállítások mentése közben: {e}")
+        return False
 
 def get_statistics_file():
     """Visszaadja a statisztika fájl elérési útját"""
@@ -180,6 +223,9 @@ def main():
     
     # Statisztikák betöltése
     stats = load_statistics()
+
+    # Beállítások betöltése
+    settings = load_settings()
     
     # Kérjük meg a felhasználót, hogy válasszon egy opciót
     frame = tk.Frame(root, padx=20, pady=20)
@@ -190,7 +236,7 @@ def main():
     title_label.pack(pady=10)
     
     # Hangfájl változó
-    sound_file = None
+    sound_file = settings.get("sound_file")
     
     # Nehézségi szintek méretei
     difficulty_sizes = {
@@ -226,7 +272,12 @@ def main():
                                              filetypes=[("Hangfájlok", "*.wav *.mp3"), ("Minden fájl", "*.*")])
         if filename:
             sound_file = filename
-            sound_label.config(text=f"Kiválasztott hang: {filename.split('/')[-1]}")
+            # Frissítjük a beállításokat és mentjük
+            settings["sound_file"] = filename
+            save_settings(settings)
+            # Frissítjük a címkét
+            sound_display = filename.split('/')[-1] if '/' in filename else filename.split('\\')[-1]
+            sound_label.config(text=f"Kiválasztott hang: {sound_display}")
     
     # Játék választó keret
     game_frame = tk.LabelFrame(frame, text="Válassz játékot", font=("Arial", 12), padx=10, pady=10)
@@ -257,10 +308,17 @@ def main():
     sound_frame = tk.LabelFrame(frame, text="Gratuláló hang", font=("Arial", 12), padx=10, pady=10)
     sound_frame.pack(fill=tk.X, pady=10)
     
-    # Hang kiválasztása
+     # Hang kiválasztása
     tk.Button(sound_frame, text="Hangfájl kiválasztása", command=select_sound,
              font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
-    sound_label = tk.Label(sound_frame, text="Nincs kiválasztva hang", font=("Arial", 10))
+    
+    # Hangfájl megjelenítése
+    sound_text = "Nincs kiválasztva hang"
+    if sound_file:
+        sound_display = sound_file.split('/')[-1] if '/' in sound_file else sound_file.split('\\')[-1]
+        sound_text = f"Kiválasztott hang: {sound_display}"
+    
+    sound_label = tk.Label(sound_frame, text=sound_text, font=("Arial", 10))
     sound_label.pack(pady=5)
     
     # Statisztika keret
