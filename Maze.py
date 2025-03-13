@@ -1,7 +1,7 @@
 import tkinter as tk
-from tkinter import messagebox, filedialog
-import random
+from tkinter import messagebox
 import pygame.mixer
+import Main
 
 class MazeGame:
     def __init__(self, master, maze=None, sound_file=None):
@@ -149,8 +149,11 @@ class MazeGame:
                         except Exception as e:
                             print(f"Hiba a hang lejátszása közben: {e}")
                     
-                    messagebox.showinfo("Gratulálok!", "Elérted a célt!")
-                    self.new_game()
+                    # Győzelmi üzenet
+                    if messagebox.askyesno("Gratulálok!", "Elérted a célt! Szeretnél új játékot kezdeni?"):
+                        self.restart_game()
+                    else:
+                        self.new_game()
     
     def new_game(self):
         """Új játék indítása"""
@@ -168,3 +171,23 @@ class MazeGame:
             (self.player_pos[1] + 1) * self.cell_size - 5,
             (self.player_pos[0] + 1) * self.cell_size - 5
         )
+
+    def restart_game(self):
+        """Teljesen újraindítja a játékot - ez a gomb eseménykezelője"""
+        # # Eltávolítjuk a jelenlegi játékot
+        # self.canvas.pack_forget()
+        # self.new_game_button.pack_forget()
+        
+        # Visszatérünk a főmenübe
+        self.master.destroy()
+        
+        # Új játék indítása
+        #new_root = tk.Tk()
+        Main.main()
+
+        # Alternatíva a teljes újraindítással:
+        # # Új játék indítása - importáljuk itt, hogy elkerüljük a körkörös importálást
+        # import sys
+        # python = sys.executable
+        # import os
+        # os.execl(python, python, *sys.argv)
