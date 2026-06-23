@@ -1,9 +1,10 @@
 import tkinter as tk
 from tkinter import messagebox
 import pygame.mixer, Main
+import io, struct, wave
 
 class MazeGame:
-    def __init__(self, master, maze=None, sound_file=None, difficulty=None):
+    def __init__(self, master, maze=None, sound_file=None, difficulty=None, sound_muted=False):
         self.master = master
         self.master.title("Labirintus Játék")
         
@@ -19,6 +20,10 @@ class MazeGame:
             print("Figyelmeztetés: A pygame.mixer nem inicializálható. A hanglejátszás nem fog működni.")
         
         self.victory_sound = sound_file
+        self.sound_muted = sound_muted
+        self.default_victory_sound = None
+        if self.sound_enabled and not self.sound_muted:
+            self.default_victory_sound = self.create_default_victory_sound()
         
         # Alapértelmezett színek
         self.wall_color = "black"
@@ -153,13 +158,8 @@ class MazeGame:
                 
                 # Ellenőrizzük, hogy elértük-e a célt
                 if self.goal_pos and self.player_pos[0] == self.goal_pos[0] and self.player_pos[1] == self.goal_pos[1]:
-                    # Hanglejátszás, ha van beállítva
-                    if self.sound_enabled and self.victory_sound:
-                        try:
-                            sound = pygame.mixer.Sound(self.victory_sound)
-                            sound.play()
-                        except Exception as e:
-                            print(f"Hiba a hang lejátszása közben: {e}")
+                    # Hanglejátszás: kiválasztott hangfájl, vagy alapértelmezett 16 bites dallam
+                    self.play_victory_sound()
                     
                     # Statisztika frissítése
                     self.update_statistics()
@@ -169,6 +169,55 @@ class MazeGame:
                         self.restart_game()
                     else:
                         self.new_game()
+
+    def create_default_victory_sound(self):
+        """Rövid, 16 bites jellegű győzelmi dallam generálása memóriában."""
+        sample_rate = 22050
+        amplitude = 12000
+        melody = [
+            (523.25, 0.12),  # C5
+            (659.25, 0.12),  # E5
+            (783.99, 0.12),  # G5
+            (1046.50, 0.22), # C6
+            (783.99, 0.10),
+            (1046.50, 0.32)
+        ]
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wav_file:
+            wav_file.setnchannels(1)
+            wav_file.setsampwidth(2)
+            wav_file.setframerate(sample_rate)
+
+            for frequency, duration in melody:
+                total_samples = int(sample_rate * duration)
+                period = sample_rate / frequency
+
+                for sample_index in range(total_samples):
+                    # Négyszögjel: klasszikus retro / chiptune hangzás.
+                    value = amplitude if (sample_index % period) < (period / 2) else -amplitude
+                    wav_file.writeframes(struct.pack("<h", int(value)))
+
+                # Rövid szünet a hangok között.
+                pause_samples = int(sample_rate * 0.025)
+                for _ in range(pause_samples):
+                    wav_file.writeframes(struct.pack("<h", 0))
+
+        buffer.seek(0)
+        return pygame.mixer.Sound(file=buffer)
+
+    def play_victory_sound(self):
+        """Lejátssza a kiválasztott vagy az alapértelmezett győzelmi hangot."""
+        if not self.sound_enabled or self.sound_muted:
+            return
+
+        try:
+            if self.victory_sound:
+                pygame.mixer.Sound(self.victory_sound).play()
+            elif self.default_victory_sound:
+                self.default_victory_sound.play()
+        except Exception as e:
+            print(f"Hiba a hang lejátszása közben: {e}")
     
     def new_game(self):
         """Új játék indítása - csak a játékos helyzetét állítja vissza"""

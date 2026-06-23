@@ -123,16 +123,23 @@ def load_settings():
     # Ha a fájl nem létezik, alapértelmezett beállításokat adunk vissza
     if not os.path.exists(settings_file):
         return {
-            "sound_file": None
+            "sound_file": None,
+            "sound_muted": False
         }
     
     try:
         with open(settings_file, 'r') as f:
-            return json.load(f)
+            settings = json.load(f)
+            if "sound_file" not in settings:
+                settings["sound_file"] = None
+            if "sound_muted" not in settings:
+                settings["sound_muted"] = False
+            return settings
     except Exception as e:
         print(f"Hiba a beállítások betöltése közben: {e}")
         return {
-            "sound_file": None
+            "sound_file": None,
+            "sound_muted": False
         }
 
 def save_settings(settings):
@@ -163,29 +170,29 @@ def get_statistics_file():
 def load_statistics():
     """Betölti a statisztikákat"""
     stats_file = get_statistics_file()
+    default_stats = {
+        "Nagyon könnyű": 0,
+        "Könnyű": 0,
+        "Közepes": 0,
+        "Nehéz": 0,
+        "Extra nagy": 0,
+        "Egyedi": 0
+    }
     
     # Ha a fájl nem létezik, üres statisztikát adunk vissza
     if not os.path.exists(stats_file):
-        return {
-            "Nagyon könnyű": 0,
-            "Könnyű": 0,
-            "Közepes": 0, 
-            "Nehéz": 0,
-            "Egyedi": 0
-        }
+        return default_stats
     
     try:
         with open(stats_file, 'r') as f:
-            return json.load(f)
+            stats = json.load(f)
+            for difficulty, default_value in default_stats.items():
+                if difficulty not in stats:
+                    stats[difficulty] = default_value
+            return stats
     except Exception as e:
         print(f"Hiba a statisztika betöltése közben: {e}")
-        return {
-            "Nagyon könnyű": 0,
-            "Könnyű": 0,
-            "Közepes": 0, 
-            "Nehéz": 0,
-            "Egyedi": 0
-        }
+        return default_stats
 
 
 def save_statistics(stats):
@@ -270,25 +277,27 @@ def main():
     
     # Hangfájl változó
     sound_file = settings.get("sound_file")
+    sound_muted = tk.BooleanVar(value=settings.get("sound_muted", False))
     
     # Nehézségi szintek méretei
     difficulty_sizes = {
-        "Nagyon könnyű": (10, 10),
-        "Könnyű": (15, 15),
-        "Közepes": (20, 20),
-        "Nehéz": (25, 25)
+        "Nagyon könnyű": (11, 11),
+        "Könnyű": (17, 17),
+        "Közepes": (23, 23),
+        "Nehéz": (29, 29),
+        "Extra nagy": (37, 31)
     }
     
     # Játék indítási funkciók
     def start_default():
         frame.destroy()
-        game = Maze.MazeGame(root, sound_file=sound_file, difficulty="Nagyon könnyű")
+        game = Maze.MazeGame(root, sound_file=sound_file, difficulty="Nagyon könnyű", sound_muted=sound_muted.get())
     
     def start_random(difficulty):
         frame.destroy()
         width, height = difficulty_sizes[difficulty]
         maze = generate_maze(width, height)
-        game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty=difficulty)
+        game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty=difficulty, sound_muted=sound_muted.get())
     
     def load_from_file():
         filename = filedialog.askopenfilename(title="Labirintus betöltése", 
@@ -297,7 +306,7 @@ def main():
             maze = load_maze_from_file(filename)
             if maze:
                 frame.destroy()
-                game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty="Egyedi")
+                game = Maze.MazeGame(root, maze, sound_file=sound_file, difficulty="Egyedi", sound_muted=sound_muted.get())
     
     def select_sound():
         nonlocal sound_file
@@ -311,6 +320,11 @@ def main():
             # Frissítjük a címkét
             sound_display = filename.split('/')[-1] if '/' in filename else filename.split('\\')[-1]
             sound_label.config(text=f"Kiválasztott hang: {sound_display}")
+
+    def toggle_mute():
+        settings["sound_muted"] = sound_muted.get()
+        save_settings(settings)
+        mute_button.config(text="Unmute" if sound_muted.get() else "Mute")
     
     # Játék választó keret
     game_frame = tk.LabelFrame(frame, text="Válassz játékot", font=("Arial", 12), padx=10, pady=10)
@@ -332,6 +346,8 @@ def main():
              font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
     tk.Button(game_frame, text="Nehéz", command=lambda: start_random("Nehéz"),
              font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    tk.Button(game_frame, text="Extra nagy", command=lambda: start_random("Extra nagy"),
+             font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
     
     # Pálya betöltése
     tk.Button(game_frame, text="Pálya betöltése fájlból", command=load_from_file,
@@ -344,6 +360,12 @@ def main():
      # Hang kiválasztása
     tk.Button(sound_frame, text="Hangfájl kiválasztása", command=select_sound,
              font=("Arial", 12), height=2).pack(fill=tk.X, pady=5)
+    
+    # Hang némítása / visszakapcsolása
+    mute_button = tk.Checkbutton(sound_frame, text="Unmute" if sound_muted.get() else "Mute",
+                                 variable=sound_muted, command=toggle_mute,
+                                 font=("Arial", 12), indicatoron=False, height=2)
+    mute_button.pack(fill=tk.X, pady=5)
     
     # Hangfájl megjelenítése
     sound_text = "Nincs kiválasztva hang"
