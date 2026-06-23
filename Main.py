@@ -2,73 +2,106 @@
 import tkinter as tk
 from tkinter import filedialog
 import random, json, os, Maze
+from collections import deque
 
 
 def generate_maze(width, height):
-    """Egyszerű labirintus generálása"""
-    # 1 = fal, 0 = út, 2 = cél, 3 = kezdőpozíció
-    
-    # Kezdetben minden fal
+    """Összefüggő, elágazásokban gazdag labirintus generálása.
+
+    Cellák jelentése:
+    0 = út, 1 = fal, 2 = cél, 3 = kezdőpozíció
+    """
+    # Biztonsági minimum, hogy legyen külső fal és belső játéktér.
+    width = max(5, width)
+    height = max(5, height)
+
     maze = [[1 for _ in range(width)] for _ in range(height)]
-    
-    # Kezdőpont - most már 3-as értékkel jelöljük
-    maze[1][1] = 3
-    
-    # Egyszerű út generálása: véletlenszerű útvonal a kezdő és végpont között
-    # Ez a módszer nem hoz létre igazi labirintust, csak egy útvonalat
-    current = [1, 1]
-    stack = [current]
-    
+    start = (1, 1)
+    maze[start[0]][start[1]] = 0
+
+    # Recursive backtracking / DFS: minden létrehozott járat összefüggő lesz.
+    stack = [start]
+    directions = [(-2, 0), (2, 0), (0, -2), (0, 2)]
+
     while stack:
-        current = stack[-1]
-        
-        # Választunk egy random irányt
-        directions = []
-        # Fel
-        if current[0] > 2 and maze[current[0]-2][current[1]] == 1:
-            directions.append([-1, 0])
-        # Le
-        if current[0] < height-2 and maze[current[0]+2][current[1]] == 1:
-            directions.append([1, 0])
-        # Balra
-        if current[1] > 2 and maze[current[0]][current[1]-2] == 1:
-            directions.append([0, -1])
-        # Jobbra
-        if current[1] < width-2 and maze[current[0]][current[1]+2] == 1:
-            directions.append([0, 1])
-        
-        if directions:
-            # Válasszunk egy véletlenszerű irányt
-            direction = random.choice(directions)
-            
-            # Lépünk ebben az irányban kétszer (a közfalat is átfúrjuk)
-            maze[current[0] + direction[0]][current[1] + direction[1]] = 0
-            maze[current[0] + 2*direction[0]][current[1] + 2*direction[1]] = 0
-            
-            # Új pozíció a stack-re
-            stack.append([current[0] + 2*direction[0], current[1] + 2*direction[1]])
+        row, col = stack[-1]
+        possible_steps = []
+
+        shuffled_directions = directions[:]
+        random.shuffle(shuffled_directions)
+
+        for d_row, d_col in shuffled_directions:
+            next_row = row + d_row
+            next_col = col + d_col
+
+            if 1 <= next_row < height - 1 and 1 <= next_col < width - 1:
+                if maze[next_row][next_col] == 1:
+                    wall_row = row + d_row // 2
+                    wall_col = col + d_col // 2
+                    possible_steps.append((next_row, next_col, wall_row, wall_col))
+
+        if possible_steps:
+            next_row, next_col, wall_row, wall_col = random.choice(possible_steps)
+            maze[wall_row][wall_col] = 0
+            maze[next_row][next_col] = 0
+            stack.append((next_row, next_col))
         else:
-            # Ha nincs hova menni, visszalépünk
             stack.pop()
-    
-    # Helyezzük el a célt
-    goal_row = height - 2
-    goal_col = width - 2
-    
-    # Ellenőrzés, hogy biztosan út legyen
-    if maze[goal_row][goal_col] == 1:
-        # Ha fal, akkor keresünk egy közeli utat
-        for i in range(height-2, 1, -1):
-            for j in range(width-2, 1, -1):
-                if maze[i][j] == 0:
-                    goal_row, goal_col = i, j
-                    break
-            if maze[goal_row][goal_col] == 0:
-                break
-    
-    maze[goal_row][goal_col] = 2
-    
+
+    # Kontrollált extra falnyitások: hurkokat és alternatív útvonalakat ad,
+    # hogy a pálya kevésbé legyen egyetlen hosszú folyosó.
+    extra_openings = max(1, (width * height) // 35)
+    candidates = []
+
+    for row in range(1, height - 1):
+        for col in range(1, width - 1):
+            if maze[row][col] != 1:
+                continue
+
+            horizontal_connection = maze[row][col - 1] == 0 and maze[row][col + 1] == 0
+            vertical_connection = maze[row - 1][col] == 0 and maze[row + 1][col] == 0
+
+            if horizontal_connection or vertical_connection:
+                candidates.append((row, col))
+
+    random.shuffle(candidates)
+    for row, col in candidates[:extra_openings]:
+        maze[row][col] = 0
+
+    # A célt a startból legtávolabbi elérhető mezőre tesszük.
+    goal = find_farthest_reachable_cell(maze, start)
+
+    maze[start[0]][start[1]] = 3
+    maze[goal[0]][goal[1]] = 2
+
     return maze
+
+
+def find_farthest_reachable_cell(maze, start):
+    """Megkeresi BFS-sel a startból legtávolabbi bejárható cellát."""
+    height = len(maze)
+    width = len(maze[0])
+    visited = {start}
+    queue = deque([(start[0], start[1], 0)])
+    farthest = (start[0], start[1], 0)
+
+    while queue:
+        row, col, distance = queue.popleft()
+
+        if distance > farthest[2]:
+            farthest = (row, col, distance)
+
+        for d_row, d_col in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            next_row = row + d_row
+            next_col = col + d_col
+
+            if 0 <= next_row < height and 0 <= next_col < width:
+                next_cell = (next_row, next_col)
+                if next_cell not in visited and maze[next_row][next_col] == 0:
+                    visited.add(next_cell)
+                    queue.append((next_row, next_col, distance + 1))
+
+    return farthest[0], farthest[1]
 
 def get_settings_file():
     """Visszaadja a beállítások fájl elérési útját"""
